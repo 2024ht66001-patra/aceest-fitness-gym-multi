@@ -1,8 +1,34 @@
-import tkinter as tk
-from tkinter import messagebox, ttk
+import os
+try:
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+    HEADLESS = False
+except Exception:
+    # If tkinter is not available (for example in slim/container images),
+    # fall back to headless mode to avoid import errors from missing OS libs.
+    tk = None
+    messagebox = None
+    ttk = None
+    HEADLESS = True
+    
+if not HEADLESS:
+    # Only import the TkAgg canvas when tkinter is usable
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from datetime import datetime
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+
+# REMOVE these if present:
+# import tkinter as tk
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# ADD these at the top:
+import matplotlib
+matplotlib.use("Agg")  # headless backend for servers/containers
+
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+# (keep any pyplot imports if you need them)
+# import matplotlib.pyplot as plt
+
 
 # Define a clean, modern color palette
 COLOR_PRIMARY = "#4CAF50"   # Vibrant Green (Success/Add)
@@ -12,70 +38,79 @@ COLOR_CARD_BG = "#FFFFFF"   # White for data entry cards
 COLOR_TEXT = "#343A40"      # Dark Charcoal
 
 class FitnessTrackerApp:
-    def __init__(self, master):
+    def __init__(self, master=None):
+        """
+        If running in GUI mode, `master` should be a tkinter root. In headless
+        mode (for containers) master can be None and no tkinter imports are
+        required. Headless mode will still allow generating and saving charts.
+        """
         self.master = master
-        master.title("ACEest Fitness & Gym Tracker")
-        master.geometry("850x700") # Slightly larger window
-        master.config(bg=COLOR_BACKGROUND)
 
-        # --- UI Styling Setup (Ttk Style) ---
-        self.style = ttk.Style()
-        self.style.theme_use("clam") 
-        
-        # Notebook (Tab) Styling
-        self.style.configure("TNotebook", background=COLOR_BACKGROUND, borderwidth=0)
-        self.style.configure("TNotebook.Tab", 
-                             font=("Helvetica", 12, "bold"), 
-                             foreground=COLOR_TEXT,
-                             padding=[15, 8],
-                             background=COLOR_BACKGROUND)
-        self.style.map("TNotebook.Tab", 
-                       background=[("selected", COLOR_CARD_BG)],
-                       foreground=[("selected", COLOR_PRIMARY)])
-
-        # Button Styling
-        self.style.configure("Primary.TButton", 
-                             font=("Arial", 11, "bold"), 
-                             background=COLOR_PRIMARY, 
-                             foreground=COLOR_CARD_BG,
-                             padding=10)
-        self.style.map("Primary.TButton", background=[('active', '#388E3C')])
-        
-        self.style.configure("Secondary.TButton", 
-                             font=("Arial", 11, "bold"), 
-                             background=COLOR_SECONDARY, 
-                             foreground=COLOR_CARD_BG,
-                             padding=10)
-        self.style.map("Secondary.TButton", background=[('active', '#1976D2')])
-        
-        
         # Initialize workout dictionary (to store logged data)
         self.workouts = {"Warm-up": [], "Workout": [], "Cool-down": []}
 
-        # Create Notebook (Tabs)
-        self.notebook = ttk.Notebook(master)
-        self.notebook.pack(expand=True, fill="both", padx=20, pady=20)
+        # Only perform GUI setup when tkinter is available and not running headless
+        if not HEADLESS:
+            master.title("ACEest Fitness & Gym Tracker")
+            master.geometry("850x700") # Slightly larger window
+            master.config(bg=COLOR_BACKGROUND)
 
-        # Tabs Frames - Using COLOR_BACKGROUND for tab content
-        self.log_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
-        self.chart_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
-        self.diet_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
-        self.progress_tab = tk.Frame(self.notebook, bg=COLOR_CARD_BG) # White BG for charts
+            # --- UI Styling Setup (Ttk Style) ---
+            self.style = ttk.Style()
+            self.style.theme_use("clam") 
+            
+            # Notebook (Tab) Styling
+            self.style.configure("TNotebook", background=COLOR_BACKGROUND, borderwidth=0)
+            self.style.configure("TNotebook.Tab", 
+                                 font=("Helvetica", 12, "bold"), 
+                                 foreground=COLOR_TEXT,
+                                 padding=[15, 8],
+                                 background=COLOR_BACKGROUND)
+            self.style.map("TNotebook.Tab", 
+                           background=[("selected", COLOR_CARD_BG)],
+                           foreground=[("selected", COLOR_PRIMARY)])
 
-        self.notebook.add(self.log_tab, text="🏋️ Log Workouts")
-        self.notebook.add(self.chart_tab, text="💡 Workout Plan")
-        self.notebook.add(self.diet_tab, text="🥗 Diet Guide")
-        self.notebook.add(self.progress_tab, text="📈 Progress Tracker")
+            # Button Styling
+            self.style.configure("Primary.TButton", 
+                                 font=("Arial", 11, "bold"), 
+                                 background=COLOR_PRIMARY, 
+                                 foreground=COLOR_CARD_BG,
+                                 padding=10)
+            self.style.map("Primary.TButton", background=[('active', '#388E3C')])
+            
+            self.style.configure("Secondary.TButton", 
+                                 font=("Arial", 11, "bold"), 
+                                 background=COLOR_SECONDARY, 
+                                 foreground=COLOR_CARD_BG,
+                                 padding=10)
+            self.style.map("Secondary.TButton", background=[('active', '#1976D2')])
+
+            # Create Notebook (Tabs)
+            self.notebook = ttk.Notebook(master)
+            self.notebook.pack(expand=True, fill="both", padx=20, pady=20)
+
+            # Tabs Frames - Using COLOR_BACKGROUND for tab content
+            self.log_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
+            self.chart_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
+            self.diet_tab = tk.Frame(self.notebook, bg=COLOR_BACKGROUND)
+            self.progress_tab = tk.Frame(self.notebook, bg=COLOR_CARD_BG) # White BG for charts
+
+            self.notebook.add(self.log_tab, text="🏋️ Log Workouts")
+            self.notebook.add(self.chart_tab, text="💡 Workout Plan")
+            self.notebook.add(self.diet_tab, text="🥗 Diet Guide")
+            self.notebook.add(self.progress_tab, text="📈 Progress Tracker")
+            
+            self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+
+            # Initialize sections
+            self.create_log_tab()
+            self.create_workout_plan_tab()
+            self.create_diet_guide_tab()
+            self.create_progress_tab()
+            
+            self.update_progress_charts() # Initial chart draw
+
         
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
-
-        # Initialize sections
-        self.create_log_tab()
-        self.create_workout_plan_tab()
-        self.create_diet_guide_tab()
-        self.create_progress_tab()
-        
-        self.update_progress_charts() # Initial chart draw
 
     # --- Utility Methods ---
     def on_tab_change(self, event):
@@ -129,7 +164,10 @@ class FitnessTrackerApp:
         duration_str = self.duration_entry.get().strip()
 
         if not workout or not duration_str:
-            messagebox.showerror("Input Error", "Please enter both exercise and duration.")
+            if not HEADLESS and messagebox:
+                messagebox.showerror("Input Error", "Please enter both exercise and duration.")
+            else:
+                print("Input Error: Please enter both exercise and duration.")
             return
 
         try:
@@ -146,18 +184,47 @@ class FitnessTrackerApp:
         }
         self.workouts[category].append(entry)
 
-        self.workout_entry.delete(0, tk.END)
-        self.duration_entry.delete(0, tk.END)
-        self.status_label.config(text=f"Added {workout} ({duration} min) to {category}! 💪")
-        
+        if not HEADLESS and hasattr(self, 'workout_entry'):
+            self.workout_entry.delete(0, tk.END)
+        if not HEADLESS and hasattr(self, 'duration_entry'):
+            self.duration_entry.delete(0, tk.END)
+        if not HEADLESS and hasattr(self, 'status_label'):
+            self.status_label.config(text=f"Added {workout} ({duration} min) to {category}! 💪")
+
         self.update_progress_charts()
-        messagebox.showinfo("Success", f"{workout} added successfully!")
+        if not HEADLESS and messagebox:
+            messagebox.showinfo("Success", f"{workout} added successfully!")
+        else:
+            print(f"Added {workout} ({duration} min) to {category}.")
 
     def view_summary(self):
         if not any(self.workouts.values()):
-            messagebox.showinfo("Summary", "No sessions logged yet! Start tracking your workouts.")
+            if not HEADLESS and messagebox:
+                messagebox.showinfo("Summary", "No sessions logged yet! Start tracking your workouts.")
+            else:
+                print("Summary: No sessions logged yet! Start tracking your workouts.")
             return
 
+        # In headless mode, print a plain-text summary to stdout. In GUI mode,
+        # open a Toplevel window with a scrollable text widget as before.
+        if HEADLESS:
+            total_time = 0
+            print("--- DETAILED WORKOUT SUMMARY ---")
+            for category, sessions in self.workouts.items():
+                print(f"--- {category.upper()} ---")
+                if sessions:
+                    for i, entry in enumerate(sessions, 1):
+                        line = f"  {i}. {entry['exercise']} - {entry['duration']} min | Date: {entry['timestamp'].split(' ')[0]}"
+                        print(line)
+                        total_time += entry['duration']
+                else:
+                    print("  No sessions recorded.")
+                print()
+            print("--- LIFETIME TOTALS ---")
+            print(f"  Total Training Time: {total_time} minutes")
+            return
+
+        # GUI mode (unchanged)
         summary_window = tk.Toplevel(self.master)
         summary_window.title("Detailed Workout Summary")
         summary_window.geometry("550x550")
@@ -177,7 +244,7 @@ class FitnessTrackerApp:
         scrollbar.config(command=summary_text.yview)
 
         total_time = 0
-        
+
         for category, sessions in self.workouts.items():
             summary_text.insert(tk.END, f"--- {category.upper()} ---\n", category.lower())
             summary_text.tag_config(category.lower(), font=("Inter", 12, "bold"), foreground=COLOR_SECONDARY if category=="Warm-up" else COLOR_PRIMARY if category=="Workout" else "#FFC107")
@@ -296,7 +363,16 @@ class FitnessTrackerApp:
 
         fig.tight_layout(pad=2.0)
 
-        # 4. Embed Matplotlib Figure into Tkinter
+        # 4. Either embed into Tk (GUI) or save to file (headless)
+        if HEADLESS:
+            outdir = os.getenv("HEADLESS_OUTPUT_DIR", ".")
+            os.makedirs(outdir, exist_ok=True)
+            fname = os.path.join(outdir, f"progress_{datetime.now().strftime('%Y%m%d-%H%M%S')}.png")
+            fig.savefig(fname, bbox_inches='tight', facecolor=fig.get_facecolor())
+            print(f"Headless: saved progress chart to {fname}")
+            return
+
+        # GUI embedding
         self.chart_canvas = FigureCanvasTkAgg(fig, master=self.chart_container)
         self.chart_canvas.draw()
         self.chart_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
@@ -308,6 +384,21 @@ class FitnessTrackerApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = FitnessTrackerApp(root)
-    root.mainloop()
+    # If tkinter isn't available we'll run in headless mode and generate a
+    # chart file instead of opening a GUI. This avoids crashes in slim
+    # container images that lack OS-level Tk libraries.
+    if HEADLESS:
+        app = FitnessTrackerApp(None)
+        # (Optional) populate with an example entry if environment requests it
+        if os.getenv("HEADLESS_INIT_SAMPLE", "0") in ("1", "true", "True"):
+            app.workouts = {
+                "Warm-up": [{"exercise": "Jumping Jacks", "duration": 5, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}],
+                "Workout": [{"exercise": "Squats", "duration": 30, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}],
+                "Cool-down": [{"exercise": "Stretching", "duration": 5, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]
+            }
+        # Render and save the charts to the current directory (or HEADLESS_OUTPUT_DIR)
+        app.update_progress_charts()
+    else:
+        root = tk.Tk()
+        app = FitnessTrackerApp(root)
+        root.mainloop()
